@@ -1,5 +1,7 @@
 import streamlit as st
 import moloco_simulator
+import env_variables as env
+import requests
 
 st.set_page_config(layout="wide", page_title="Bubbleye Ad Manager (Mock)")
 
@@ -10,8 +12,26 @@ st.write("---")
 
 st.header("Moloco Campaigns Overview")
 
-# Simulate fetching campaigns
-campaigns_response = moloco_simulator.simulate_get_campaigns()
+# Call API (List up Campaigns)
+# This is a mock API call to simulate fetching active campaigns
+# Example of calling the local Flask API endpoint from moloco_simulator
+# (Assuming your Flask app is running locally on port 5000)
+
+url = "http://localhost:5000/cm/v1/campaigns"
+params = {
+    "ad_account_id": env.ad_account_id,
+    "product_id": env.product_id,
+    "states": "ACTIVE",
+    "fetch_option": "UNKNOWN_FETCH_OPTION"
+}
+headers = {"accept": "application/json"}
+
+response = requests.get(url, headers=headers, params=params)
+try:
+    campaigns_response = response.json()
+except Exception as e:
+    st.error(f"Failed to decode JSON from API. Status code: {response.status_code}\nResponse text: {response.text}")
+    campaigns_response = {}
 
 if "data" in campaigns_response:
     st.success("Successfully fetched mock campaigns!")

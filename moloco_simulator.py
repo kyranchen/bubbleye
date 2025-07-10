@@ -1,6 +1,7 @@
 import uuid
 import datetime
 import random
+from flask import Flask, jsonify, request
 
 # --- In-memory Data Stores (Mock Moloco Database) ---
 # Each dictionary stores entities by their unique ID.
@@ -23,7 +24,7 @@ _MOLOCO_CAMPAIGNS = {
     "regular_campaign_a": { # Assume two regular campaigns
         "id": "regular_campaign_a",
         "name": "regular_campaign_a",
-        "status": "RUNNING",
+        "status": "ACTIVE",
         "creative_group_ids": [], # Initially empty, or pre-filled with mock data
         "type": "REGULAR",
         "createTime": datetime.datetime.now().isoformat(),
@@ -32,7 +33,7 @@ _MOLOCO_CAMPAIGNS = {
     "regular_campaign_b": { # Assume two regular campaigns
         "id": "regular_campaign_b",
         "name": "regular_campaign_b",
-        "status": "RUNNING",
+        "status": "ACTIVE",
         "creative_group_ids": [], # Initially empty, or pre-filled with mock data
         "type": "REGULAR",
         "createTime": datetime.datetime.now().isoformat(),
@@ -162,12 +163,21 @@ def simulate_create_creative_group(name: str, creative_ids: list):
     _MOLOCO_CREATIVE_GROUPS[creative_group_id] = creative_group_data
     return {"data": {"id": creative_group_id, "name": name, "status": "ACTIVE"}}
 
-def simulate_get_campaigns():
+app = Flask(__name__)
+
+@app.route('/cm/v1/campaigns', methods=['GET'])
+def api_get_campaigns():
     """
-    Simulates retrieving all campaign data.
+    API endpoint to retrieve all campaign data.
+    Supports Moloco-like query parameters: ad_account_id, product_id, states, fetch_option.
     """
-    campaign_list = list(_MOLOCO_CAMPAIGNS.values())
-    return {"data": campaign_list}
+    # For simulation, ignore query params but accept them for compatibility
+    ad_account_id = request.args.get('ad_account_id')
+    product_id = request.args.get('product_id')
+    states = request.args.get('states')
+    fetch_option = request.args.get('fetch_option')
+    campaign_list = [c for c in _MOLOCO_CAMPAIGNS.values() if c["status"] == "ACTIVE"]
+    return jsonify({"data": campaign_list})
 
 def simulate_add_creative_groups_to_campaign(campaign_id: str, new_creative_group_ids: list):
     """
@@ -305,3 +315,6 @@ def simulate_get_champion_queue_status():
     return {"data": list(_MOLOCO_CHAMPION_CONCEPTS_QUEUE)}
 
 # You can add more helper functions here as needed.
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
