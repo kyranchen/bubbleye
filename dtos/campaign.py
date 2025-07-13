@@ -3,8 +3,11 @@ from typing import List, Optional
 
 @dataclass
 class Campaign:
-    id: str
-    name: str
+    ad_account_id: str
+    product_id: str
+    campaign_id: str
+    title: str
+    description: str
     status: str
     creative_group_ids: list
     type: str
