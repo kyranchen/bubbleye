@@ -9,7 +9,7 @@ class Campaign:
     title: str
     description: str
     status: str
-    creative_group_ids: list
+    ad_group_ids: list
     type: str
     createTime: str
     lastModifiedTime: str

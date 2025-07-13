@@ -56,7 +56,7 @@ testing_campaign = Campaign(
     title="creative_testing_campaign",
     description="creative_testing_campaign",
     status="PAUSED", # Initial status as per requirements implicitly
-    creative_group_ids=["good_creative_group"], # Initially includes the control group
+    ad_group_ids=["good_creative_group"], # Initially includes the control group
     type="TESTING",
     createTime=datetime.datetime.now().isoformat(),
     lastModifiedTime=datetime.datetime.now().isoformat(),
@@ -69,9 +69,7 @@ regular_campaign_a = Campaign(
     title="regular_campaign_a",
     description="Regular Campaign A",
     status="ACTIVE",
-    creative_group_ids=[
-        ""
-    ], # Initially empty, or pre-filled with mock data
+    ad_group_ids=[],
     type="REGULAR",
     createTime=datetime.datetime.now().isoformat(),
     lastModifiedTime=datetime.datetime.now().isoformat(),
@@ -83,7 +81,7 @@ regular_campaign_b = Campaign(
     title="regular_campaign_b",
     description="Regular Campaign B",
     status="ACTIVE",
-    creative_group_ids=[], # Initially empty, or pre-filled with mock data
+    ad_group_ids=[], # Initially empty, or pre-filled with mock data
     type="REGULAR",
     createTime=datetime.datetime.now().isoformat(),
     lastModifiedTime=datetime.datetime.now().isoformat(),
@@ -211,20 +209,26 @@ def get_campaigns():
         campaign_list.append(c.to_dict() if hasattr(c, "to_dict") else c.__dict__)
     return jsonify({"data": campaign_list})
 
-def simulate_add_creative_groups_to_campaign(campaign_id: str, new_creative_group_ids: list):
+@app.route('/cm/v1/campaigns/<campaign_id>', methods=['POST'])
+def add_creative_groups_to_campaign(campaign_id: str):
     """
     Simulates attaching creative groups to a campaign.
     """
-    if campaign_id not in _MOLOCO_CAMPAIGNS:
-        return {"error": f"Campaign '{campaign_id}' not found."}
+    campaign = next((c for c in _MOLOCO_CAMPAIGNS if c.campaign_id == campaign_id), None)
+    if campaign is None:
+        return jsonify({"error": f"Campaign '{campaign_id}' not found."}), 404
+    
+    creative_group_ids = request.args.getlist("creative_group_ids")
+    for cg_id in creative_group_ids:
+        ad_group_id = _generate_id("ad_group")
+        ad_group = AdGroup(
+            ad_group_id=ad_group_id,
+            campaign_id=campaign_id,
+            creative_group_ids=[cg_id],
+            performance={"impressions": 0, "conversions": 0}
+        )
+        campaign.ad_group_ids.append(ad_group_id)
 
-    campaign = _MOLOCO_CAMPAIGNS[campaign_id]
-    for cg_id in new_creative_group_ids:
-        if cg_id not in _MOLOCO_CREATIVE_GROUPS:
-            return {"error": f"Creative Group '{cg_id}' not found."}
-        if cg_id not in campaign["creative_group_ids"]: # Avoid duplicates
-            campaign["creative_group_ids"].append(cg_id)
-    campaign["lastModifiedTime"] = datetime.datetime.now().isoformat()
     return {"message": "Creative groups attached successfully."}
 
 

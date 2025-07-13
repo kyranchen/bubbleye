@@ -40,10 +40,10 @@ if "data" in campaigns_response:
         st.markdown(f"**Campaign Name:** {campaign['description']} (ID: `{campaign['title']}`)")
         st.write(f"**Status:** {campaign['status']}")
         st.write(f"**Type:** {campaign['type']}")
-        st.write(f"**Creative Groups Attached:** {len(campaign['creative_group_ids'])}")
+        st.write(f"**Creative Groups Attached:** {len(campaign['ad_group_ids'])}")
         cg_key = f"creative_groups_{campaign['campaign_id']}"
         if cg_key not in st.session_state:
-            st.session_state[cg_key] = list(campaign['creative_group_ids'])
+            st.session_state[cg_key] = list(campaign['ad_group_ids'])
         # Always display the latest creative groups from session_state
         st.write(f"Creative Groups: {st.session_state[cg_key]}")
         if st.button(f"Replace Worst in {campaign['description']}", key=f"replace_{campaign['campaign_id']}"):
@@ -181,6 +181,10 @@ landscape_creative_id = st.selectbox(
 creative_group_title = st.text_input("Creative Group Title", value="New Creative Group")
 creative_group_description = st.text_area("Creative Group Description", value="Description of the new creative group")
 
+# Maintain a list of the last two created creative group IDs in session state
+if "last_created_cg_ids" not in st.session_state:
+    st.session_state["last_created_cg_ids"] = []
+
 if st.button("Upload Portrait and Landscape Creatives"):
     st.info("Simulating creative group creation...")
     new_creative_group_name = creative_group_title or "New Creative Group"
@@ -196,29 +200,33 @@ if st.button("Upload Portrait and Landscape Creatives"):
     if "data" in creative_group_response_json:
         new_cg_id = creative_group_response_json["data"]["id"]
         st.success(f"Creative group '{new_cg_id}' created successfully!")
-        st.session_state["last_created_cg_id"] = new_cg_id # Store for later use in session state
+        # Add new ID and keep only the last two
+        st.session_state["last_created_cg_ids"].append(new_cg_id)
+        st.session_state["last_created_cg_ids"] = st.session_state["last_created_cg_ids"][-2:]
     else:
         st.error(f"Failed to create creative group: {creative_group_response}")
 
 
 st.write("---")
 
-st.header("Attach to Creative Testing Campaign")
+st.header("Attach Creatives to Testing Campaign")
 
-if "last_created_cg_id" in st.session_state:
-    st.write(f"Newly created Creative Group to attach: `{st.session_state['last_created_cg_id']}`")
-    if st.button(f"Attach {st.session_state['last_created_cg_id']} to creative_testing_campaign"):
+if st.session_state["last_created_cg_ids"]:
+    st.write("Newly created Creative Groups to attach:")
+    for cg_id in st.session_state["last_created_cg_ids"]:
+        st.write(f"- `{cg_id}`")
+    if st.button(f"Attach {', '.join(st.session_state['last_created_cg_ids'])} to creative_testing_campaign"):
         attach_response = moloco_simulator.simulate_add_creative_groups_to_campaign(
             campaign_id="creative_testing_campaign",
-            new_creative_group_ids=[st.session_state["last_created_cg_id"]]
+            new_creative_group_ids=st.session_state["last_created_cg_ids"]
         )
         if "message" in attach_response:
             st.success(attach_response["message"])
-            del st.session_state["last_created_cg_id"] # Clear it after attaching
+            st.session_state["last_created_cg_ids"] = []  # Clear after attaching
         else:
             st.error(f"Failed to attach: {attach_response.get('error', 'Unknown error')}")
 else:
-    st.info("Simulate a new creative concept first to get a Creative Group to attach.")
+    st.info("Simulate new creative concepts first to get Creative Groups to attach.")
 
 st.write("---")
 
