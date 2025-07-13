@@ -1,117 +1,120 @@
 import uuid
 import datetime
 import random
+import env_variables as env
 from flask import Flask, jsonify, request
+from dtos.campaign import Campaign
+from dtos.ad_group import AdGroup
+from dtos.creative_group import CreativeGroup
+from dtos.creative import Creative
 
 # --- In-memory Data Stores (Mock Moloco Database) ---
 # Each dictionary stores entities by their unique ID.
 
-_MOLOCO_ASSETS = {} # Stores mock asset data
-_MOLOCO_CREATIVES = {} # Stores mock creative data
-_MOLOCO_CREATIVE_GROUPS = {} # Stores mock creative group data
-_MOLOCO_CAMPAIGNS = {
-    # Pre-populate required campaigns as per project specs
-    "creative_testing_campaign": {
-        "id": "creative_testing_campaign",
-        "name": "creative_testing_campaign",
-        "status": "PAUSED", # Initial status as per requirements implicitly
-        "creative_group_ids": ["good_creative_group"], # Initially includes the control group
-        "type": "TESTING",
-        "createTime": datetime.datetime.now().isoformat(),
-        "lastModifiedTime": datetime.datetime.now().isoformat(),
-        "impressions_goal_per_cg": 10000 # Specific for this testing campaign
-    },
-    "regular_campaign_a": { # Assume two regular campaigns
-        "id": "regular_campaign_a",
-        "name": "regular_campaign_a",
-        "status": "ACTIVE",
-        "creative_group_ids": [], # Initially empty, or pre-filled with mock data
-        "type": "REGULAR",
-        "createTime": datetime.datetime.now().isoformat(),
-        "lastModifiedTime": datetime.datetime.now().isoformat(),
-    },
-    "regular_campaign_b": { # Assume two regular campaigns
-        "id": "regular_campaign_b",
-        "name": "regular_campaign_b",
-        "status": "ACTIVE",
-        "creative_group_ids": [], # Initially empty, or pre-filled with mock data
-        "type": "REGULAR",
-        "createTime": datetime.datetime.now().isoformat(),
-        "lastModifiedTime": datetime.datetime.now().isoformat(),
-    }
-}
-_MOLOCO_CHAMPION_CONCEPTS_QUEUE = [] # Stores champion creative group IDs in a waiting line
+_MOLOCO_ASSETS = [] # Stores mock asset data
+_MOLOCO_CREATIVES = [] # Stores mock creative data
+_MOLOCO_CREATIVE_GROUPS = [] # Stores mock creative group data
+testing_campaign = Campaign(
+    ad_account_id=env.ad_account_id,
+    product_id=env.product_id,
+    campaign_id="creative_testing_campaign",
+    title="creative_testing_campaign",
+    description="creative_testing_campaign",
+    status="PAUSED", # Initial status as per requirements implicitly
+    creative_group_ids=["good_creative_group"], # Initially includes the control group
+    type="TESTING",
+    createTime=datetime.datetime.now().isoformat(),
+    lastModifiedTime=datetime.datetime.now().isoformat(),
+    impressions_goal_per_cg=10000 # Specific for this testing campaign
+)
+regular_campaign_a = Campaign(
+    ad_account_id=env.ad_account_id,
+    product_id=env.product_id,
+    campaign_id="regular_campaign_a",
+    title="regular_campaign_a",
+    description="Regular Campaign A",
+    status="ACTIVE",
+    creative_group_ids=[
+        ""
+    ], # Initially empty, or pre-filled with mock data
+    type="REGULAR",
+    createTime=datetime.datetime.now().isoformat(),
+    lastModifiedTime=datetime.datetime.now().isoformat(),
+)
+regular_campaign_b = Campaign(
+    ad_account_id=env.ad_account_id,
+    product_id=env.product_id,
+    campaign_id="regular_campaign_b",
+    title="regular_campaign_b",
+    description="Regular Campaign B",
+    status="ACTIVE",
+    creative_group_ids=[], # Initially empty, or pre-filled with mock data
+    type="REGULAR",
+    createTime=datetime.datetime.now().isoformat(),
+    lastModifiedTime=datetime.datetime.now().isoformat(),
+)
+_MOLOCO_CAMPAIGNS = [
+    testing_campaign,
+    regular_campaign_a,
+    regular_campaign_b
+]
+# Stores champion creative group IDs in a waiting line
+champion_ad1 = AdGroup(
+    ad_group_id="champion_cg_1",
+    campaign_id="creative_testing_campaign",
+    creative_group_ids=["champion_cg_1"],
+    performance={"impressions": 1000, "conversions": 123}
+)
+champion_ad2 = AdGroup(
+    ad_group_id="champion_cg_2",
+    campaign_id="creative_testing_campaign",
+    creative_group_ids=["champion_cg_2"], 
+    performance={"impressions": 1000, "conversions": 150}
+)
+champion_ad3 = AdGroup(
+    ad_group_id="champion_cg_3",
+    campaign_id="creative_testing_campaign",
+    creative_group_ids=["champion_cg_3"], 
+    performance={"impressions": 1000, "conversions": 200}
+)
+_MOLOCO_CHAMPION_CONCEPTS_QUEUE = [
+    champion_ad1, champion_ad2, champion_ad3
+] 
 
 # Pre-populate the "good_creative_group" as it's a control group
-_MOLOCO_CREATIVE_GROUPS["good_creative_group"] = {
-    "id": "good_creative_group",
-    "name": "good_creative_group",
-    "status": "ACTIVE",
-    "creative_ids": ["creative_good_portrait", "creative_good_landscape"], # Mock creative IDs for the control group
-    "createTime": datetime.datetime.now().isoformat(),
-    "lastModifiedTime": datetime.datetime.now().isoformat(),
-    "performance": {"conversions": 200, "impressions": 10000} # Assume it has performed well
-}
-_MOLOCO_CREATIVES["creative_good_portrait"] = {
-    "id": "creative_good_portrait",
-    "name": "good_portrait_creative",
-    "creative_type": "VIDEO",
-    "asset_id": "asset_good_portrait",
-    "video_property": {"auto_endcard": True},
-    "status": "ACTIVE",
-    "createTime": datetime.datetime.now().isoformat(),
-    "lastModifiedTime": datetime.datetime.now().isoformat(),
-}
-_MOLOCO_CREATIVES["creative_good_landscape"] = {
-    "id": "creative_good_landscape",
-    "name": "good_landscape_creative",
-    "creative_type": "VIDEO",
-    "asset_id": "asset_good_landscape",
-    "video_property": {"auto_endcard": True},
-    "status": "ACTIVE",
-    "createTime": datetime.datetime.now().isoformat(),
-    "lastModifiedTime": datetime.datetime.now().isoformat(),
-}
-_MOLOCO_ASSETS["asset_good_portrait"] = {
-    "id": "asset_good_portrait",
-    "file_name": "good_portrait_video.mp4",
-    "status": "uploaded",
-    "upload_time_seconds": 3,
-    "createTime": datetime.datetime.now().isoformat(),
-}
-_MOLOCO_ASSETS["asset_good_landscape"] = {
-    "id": "asset_good_landscape",
-    "file_name": "good_landscape_video.mp4",
-    "status": "uploaded",
-    "upload_time_seconds": 3,
-    "createTime": datetime.datetime.now().isoformat(),
-}
 
-
+app = Flask(__name__)
 # --- Helper Function for ID Generation ---
 def _generate_id(prefix="id"):
     """Generates a unique ID with a given prefix."""
     return f"{prefix}_{str(uuid.uuid4()).replace('-', '_')[:8]}"
 
 # --- Simulation Functions (Mock Moloco API Endpoints) ---
-
-def simulate_upload_asset(file_name: str, content_type: str = "video/mp4"):
+@app.route('/cm/v1/creatives', methods=['POST'])
+def upload_creative():
     """
     Simulates the Moloco API call to upload an asset.
     Returns a mock response dictionary.
     """
-    asset_id = _generate_id("asset")
+    ad_account_id = request.args.get("ad_account_id")
+    product_id = request.args.get("product_id")
+    creative_id = _generate_id("creative")
+    title = request.args.get("title", "New Creative")
+    type = request.args.get("type")
     upload_time = random.randint(2, 10) # Simulate varying upload times
-    asset_data = {
-        "id": asset_id,
-        "file_name": file_name,
-        "content_type": content_type,
-        "status": "uploaded",
-        "upload_time_seconds": upload_time,
-        "createTime": datetime.datetime.now().isoformat(),
-    }
-    _MOLOCO_ASSETS[asset_id] = asset_data
-    return {"data": {"id": asset_id, "status": "uploaded", "upload_time_seconds": upload_time}}
+    now = datetime.datetime.now().isoformat()
+    creative = Creative(
+        id=creative_id, 
+        ad_account_id=ad_account_id,
+        product_id=product_id,
+        title=title, 
+        type=type,
+        video_property={"auto_endcard": True}, # Assume video property for simplicity
+        createTime=now,
+        lastModifiedTime=now
+    )
+    _MOLOCO_ASSETS.append(creative)
+    return jsonify({"data": {"id": creative_id, "status": "uploaded", "upload_time_seconds": upload_time}})
 
 def simulate_create_creative(name: str, creative_type: str, asset_id: str, video_property: dict = None):
     """
@@ -163,7 +166,6 @@ def simulate_create_creative_group(name: str, creative_ids: list):
     _MOLOCO_CREATIVE_GROUPS[creative_group_id] = creative_group_data
     return {"data": {"id": creative_group_id, "name": name, "status": "ACTIVE"}}
 
-app = Flask(__name__)
 
 @app.route('/cm/v1/campaigns', methods=['GET'])
 def api_get_campaigns():
@@ -176,7 +178,16 @@ def api_get_campaigns():
     product_id = request.args.get('product_id')
     states = request.args.get('states')
     fetch_option = request.args.get('fetch_option')
-    campaign_list = [c for c in _MOLOCO_CAMPAIGNS.values() if c["status"] == "ACTIVE"]
+    # Filter campaigns based on query params (if provided)
+    campaign_list = []
+    for c in _MOLOCO_CAMPAIGNS:
+        if states and c.status != states:
+            continue
+        if ad_account_id and c.ad_account_id != ad_account_id:
+            continue
+        if product_id and c.product_id != product_id:
+            continue
+        campaign_list.append(c.to_dict() if hasattr(c, "to_dict") else c.__dict__)
     return jsonify({"data": campaign_list})
 
 def simulate_add_creative_groups_to_campaign(campaign_id: str, new_creative_group_ids: list):
@@ -290,7 +301,8 @@ def simulate_replace_worst_creative_in_regular_campaign(campaign_id: str):
         # If no creative groups, just add a champion
         champion_cg_id = _MOLOCO_CHAMPION_CONCEPTS_QUEUE.pop(0)
         campaign["creative_group_ids"].append(champion_cg_id)
-        return {"message": f"Added champion '{champion_cg_id}' to empty regular campaign '{campaign_id}'."}
+        return {"message": f"Added champion '{champion_cg_id}' to empty regular campaign '{campaign_id}'."
+                , "new_champion_id": champion_cg_id, "replaced_cg_id": None}
 
     worst_cg_id = None
     min_conversions = float('inf')
@@ -306,7 +318,8 @@ def simulate_replace_worst_creative_in_regular_campaign(campaign_id: str):
         campaign["creative_group_ids"].remove(worst_cg_id)
         campaign["creative_group_ids"].append(champion_cg_id)
         campaign["lastModifiedTime"] = datetime.datetime.now().isoformat()
-        return {"message": f"Replaced '{worst_cg_id}' with champion '{champion_cg_id}' in '{campaign_id}'."}
+        return {"message": f"Replaced '{worst_cg_id}' with champion '{champion_cg_id}' in '{campaign_id}'."
+                , "replaced_cg_id": worst_cg_id, "new_champion_id": champion_cg_id}
     else:
         return {"error": "Could not identify a 'worst' creative group to replace."}
 
@@ -315,6 +328,5 @@ def simulate_get_champion_queue_status():
     return {"data": list(_MOLOCO_CHAMPION_CONCEPTS_QUEUE)}
 
 # You can add more helper functions here as needed.
-
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=8080, debug=True)

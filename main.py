@@ -17,7 +17,7 @@ st.header("Moloco Campaigns Overview")
 # Example of calling the local Flask API endpoint from moloco_simulator
 # (Assuming your Flask app is running locally on port 5000)
 
-url = "http://localhost:5000/cm/v1/campaigns"
+url = "http://localhost:8080/cm/v1/campaigns"
 params = {
     "ad_account_id": env.ad_account_id,
     "product_id": env.product_id,
@@ -31,68 +31,131 @@ try:
     campaigns_response = response.json()
 except Exception as e:
     st.error(f"Failed to decode JSON from API. Status code: {response.status_code}\nResponse text: {response.text}")
-    campaigns_response = {}
 
 if "data" in campaigns_response:
     st.success("Successfully fetched mock campaigns!")
     campaigns = campaigns_response["data"]
 
     for campaign in campaigns:
-        st.markdown(f"**Campaign Name:** {campaign['name']} (ID: `{campaign['id']}`)")
+        st.markdown(f"**Campaign Name:** {campaign['description']} (ID: `{campaign['title']}`)")
         st.write(f"**Status:** {campaign['status']}")
         st.write(f"**Type:** {campaign['type']}")
         st.write(f"**Creative Groups Attached:** {len(campaign['creative_group_ids'])}")
-        
-        # Display attached creative groups
-        if campaign['creative_group_ids']:
-            with st.expander(f"View Creative Groups for {campaign['name']}"):
-                for cg_id in campaign['creative_group_ids']:
-                    if cg_id in moloco_simulator._MOLOCO_CREATIVE_GROUPS:
-                        cg_name = moloco_simulator._MOLOCO_CREATIVE_GROUPS[cg_id]['name']
-                        st.write(f"- `{cg_id}`: {cg_name}")
-                    else:
-                        st.write(f"- `{cg_id}` (Not found in data store - might be mock placeholder)")
-        st.markdown("---")
+        cg_key = f"creative_groups_{campaign['campaign_id']}"
+        if cg_key not in st.session_state:
+            st.session_state[cg_key] = list(campaign['creative_group_ids'])
+        # Always display the latest creative groups from session_state
+        st.write(f"Creative Groups: {st.session_state[cg_key]}")
+        if st.button(f"Replace Worst in {campaign['description']}", key=f"replace_{campaign['campaign_id']}"):
+            replace_response = moloco_simulator.simulate_replace_worst_creative_in_regular_campaign(campaign['campaign_id'])
+            if "message" in replace_response:
+                st.success(replace_response["message"])
+                # Update session_state with the new creative group list
+                st.session_state[cg_key] = st.session_state[cg_key] + [replace_response["new_champion_id"]]
+                if replace_response["replaced_cg_id"]:
+                    st.session_state[cg_key].remove(replace_response["replaced_cg_id"])
+                # Display the updated creative groups immediately
+                st.write(f"Updated Creative Groups: {st.session_state[cg_key]}")
+            else:
+                st.error(f"Failed to replace: {replace_response.get('error', 'Unknown error')}")
 
+        # Display attached creative groups
+        params = {
+            "date_range": {
+                "start": "20250601",
+                "end": "20250701"
+            },
+            "ad_account_id": env.ad_account_id,
+            "dimensions": [
+                "AD_GROUP_ID",
+                "CAMPAIGN_ID"
+            ],
+            "metrics": [
+                "INSTALLS"
+            ],
+            "dimension_filters": [
+                {
+                "dimension": "CAMPAIGN_ID",
+                "operator": "IN",
+                "values": [
+                    "campaign_id_123"
+                ]
+                }
+            ],
+            "order_by_filters": [
+                {
+                "dimension": "CAMPAIGN_ID",
+                "metric": "INSTALLS",
+                "is_descending": True
+                }
+            ]
+        }
+        # if campaign['creative_group_ids']:
+        #     with st.expander(f"View Creative Groups for {campaign['title']}"):
+        #         for cg_id in campaign['creative_group_ids']:
+        #             if cg_id in moloco_simulator._MOLOCO_CREATIVE_GROUPS:
+        #                 cg_name = moloco_simulator._MOLOCO_CREATIVE_GROUPS[cg_id]['name']
+        #                 st.write(f"- `{cg_id}`: {cg_name}")
+        #             else:
+        #                 st.write(f"- `{cg_id}` (Not found in data store - might be mock placeholder)")
+        st.markdown("---")
 else:
     st.error(f"Error fetching campaigns: {campaigns_response.get('error', 'Unknown error')}")
-
 st.write("---")
 
-st.header("Simulate New Creative Concept Upload")
+st.header("Champions Waiting Queue")
+queue_status = moloco_simulator.simulate_get_champion_queue_status()
+if queue_status and queue_status["data"]:
+    st.write("Current Champions in Queue:")
+    for champion_id in queue_status["data"]:
+        st.write(f"- `{champion_id}`")
+else:
+    st.info("No champion concepts currently in the waiting queue.")
+
+st.write("---")
+st.header("New Creative Concept Upload")
 
 # Simulate uploading a portrait and landscape video for a new concept
-if st.button("Simulate New Creative Concept"):
-    st.info("Simulating upload of portrait video...")
-    portrait_asset_response = moloco_simulator.simulate_upload_asset("new_portrait_video.mp4")
-    portrait_asset_id = portrait_asset_response["data"]["id"]
-    st.success(f"Portrait video uploaded. Asset ID: `{portrait_asset_id}`")
+uploaded_file1 = st.file_uploader("Choose a file", type=["txt", "png", "jpg", "jpeg", "pdf", "mp3", "mp4"])
+uploaded_file2 = st.file_uploader("Choose a second file", type=["txt", "png", "jpg", "jpeg", "pdf", "mp3", "mp4"])
+if uploaded_file1 is not None and uploaded_file2 is not None:
+    if st.button("Upload New Creative Concept"):
+        st.info("Simulating upload of portrait video...")
+        url = "http://localhost:8080/cm/v1/creatives"
+        params = {
+            "ad_account_id": env.ad_account_id,
+            "product_id": env.product_id,
+            "title": uploaded_file1.name,
+            "type": "VIDEO"
+        }
+        portrait_asset_response = requests.post(url, headers=headers, params=params)
+        print(f"Portrait Asset Response: {portrait_asset_response.text}")
+        portrait_asset_response_json = portrait_asset_response.json()
+        if "error" in portrait_asset_response_json:
+            st.error(f"Failed to upload portrait video: {portrait_asset_response_json['error']}")
+        else:
+            portrait_creative_id = portrait_asset_response_json["data"]["id"]
+            st.success(f"Portrait video uploaded. Creative ID: `{portrait_creative_id}`")
 
-    st.info("Simulating upload of landscape video...")
-    landscape_asset_response = moloco_simulator.simulate_upload_asset("new_landscape_video.mp4")
-    landscape_asset_id = landscape_asset_response["data"]["id"]
-    st.success(f"Landscape video uploaded. Asset ID: `{landscape_asset_id}`")
+        st.info("Simulating upload of landscape video...")
+        params = {
+            "ad_account_id": env.ad_account_id,
+            "product_id": env.product_id,
+            "title": uploaded_file2.name,
+            "type": "VIDEO"
+        }
+        landscape_asset_response = requests.post(url, headers=headers, params=params)
+        landscape_asset_response_json = landscape_asset_response.json()
+        if "error" in landscape_asset_response_json:
+            st.error(f"Failed to upload landscape video: {landscape_asset_response_json['error']}")
+        else:
+            landscape_creative_id = landscape_asset_response_json["data"]["id"]
+            st.success(f"Landscape video uploaded. Creative ID: `{landscape_creative_id}`")
 
-    st.info("Simulating creative creation for portrait video...")
-    portrait_creative_response = moloco_simulator.simulate_create_creative(
-        name="New Portrait Creative",
-        creative_type="VIDEO",
-        asset_id=portrait_asset_id,
-        video_property={"auto_endcard": True}
-    )
-    portrait_creative_id = portrait_creative_response["data"]["id"]
-    st.success(f"Portrait creative created. Creative ID: `{portrait_creative_id}`")
+st.write("---")
+st.header("Create New Creative Group")
 
-    st.info("Simulating creative creation for landscape video...")
-    landscape_creative_response = moloco_simulator.simulate_create_creative(
-        name="New Landscape Creative",
-        creative_type="VIDEO",
-        asset_id=landscape_asset_id,
-        video_property={"auto_endcard": True}
-    )
-    landscape_creative_id = landscape_creative_response["data"]["id"]
-    st.success(f"Landscape creative created. Creative ID: `{landscape_creative_id}`")
-
+if st.button("Select Portrait and Landscape Creatives"):
     st.info("Simulating creative group creation...")
     new_creative_group_name = f"New_Concept_CG_{moloco_simulator._generate_id()}"
     creative_group_response = moloco_simulator.simulate_create_creative_group(
@@ -162,32 +225,6 @@ if st.button("Evaluate Creative Testing Campaign"):
 
 st.write("---")
 
-st.header("Champions Waiting Queue")
-queue_status = moloco_simulator.simulate_get_champion_queue_status()
-if queue_status and queue_status["data"]:
-    st.write("Current Champions in Queue:")
-    for champion_id in queue_status["data"]:
-        st.write(f"- `{champion_id}`")
-else:
-    st.info("No champion concepts currently in the waiting queue.")
-
-
-st.write("---")
-
-st.header("Manage Regular Campaigns")
-regular_campaigns = [moloco_simulator._MOLOCO_CAMPAIGNS["regular_campaign_a"], moloco_simulator._MOLOCO_CAMPAIGNS["regular_campaign_b"]]
-
-for reg_camp in regular_campaigns:
-    st.subheader(f"Campaign: {reg_camp['name']}")
-    st.write(f"Current Status: {reg_camp['status']}")
-    st.write(f"Creative Groups: {reg_camp['creative_group_ids']}")
-
-    if st.button(f"Replace Worst in {reg_camp['name']}", key=f"replace_{reg_camp['id']}"):
-        replace_response = moloco_simulator.simulate_replace_worst_creative_in_regular_campaign(reg_camp['id'])
-        if "message" in replace_response:
-            st.success(replace_response["message"])
-        else:
-            st.error(f"Failed to replace: {replace_response.get('error', 'Unknown error')}")
 
 st.write("---")
 
