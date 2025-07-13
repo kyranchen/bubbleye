@@ -11,7 +11,6 @@ from dtos.creative import Creative
 # --- In-memory Data Stores (Mock Moloco Database) ---
 # Each dictionary stores entities by their unique ID.
 
-_MOLOCO_ASSETS = [] # Stores mock asset data
 _MOLOCO_CREATIVES = [] # Stores mock creative data
 _MOLOCO_CREATIVE_GROUPS = [] # Stores mock creative group data
 testing_campaign = Campaign(
@@ -101,6 +100,7 @@ def upload_creative():
     creative_id = _generate_id("creative")
     title = request.args.get("title", "New Creative")
     type = request.args.get("type")
+    ad_type = request.args.get("ad_type")
     upload_time = random.randint(2, 10) # Simulate varying upload times
     now = datetime.datetime.now().isoformat()
     creative = Creative(
@@ -109,62 +109,47 @@ def upload_creative():
         product_id=product_id,
         title=title, 
         type=type,
+        ad_type=ad_type,
         video_property={"auto_endcard": True}, # Assume video property for simplicity
         createTime=now,
         lastModifiedTime=now
     )
-    _MOLOCO_ASSETS.append(creative)
+    _MOLOCO_CREATIVES.append(creative)
     return jsonify({"data": {"id": creative_id, "status": "uploaded", "upload_time_seconds": upload_time}})
 
-def simulate_create_creative(name: str, creative_type: str, asset_id: str, video_property: dict = None):
+@app.route('/cm/v1/creatives/<ad_type>', methods=['GET'])
+def get_creative_by_ad_type(ad_type):
     """
-    Simulates the Moloco API call to create a creative.
-    Assumes 'VIDEO' type with auto_endcard for this project.
+    Simulates the Moloco API call to retrieve a creative by its ad_type.
     Returns a mock response dictionary.
     """
-    if creative_type != "VIDEO":
-        return {"error": "Only VIDEO creative type is supported for this simulation."}
-    if video_property is None or video_property.get("auto_endcard") is not True:
-        return {"error": "VIDEO creatives must have auto_endcard=true."}
+    result = []
+    for creative in _MOLOCO_CREATIVES:
+        if creative.ad_type == ad_type:
+            result.append(creative.to_dict())
+    if result:
+        return jsonify({"data": result})
+    return jsonify({"error": f"No creatives found for ad_type '{ad_type}'."})
 
-    if asset_id not in _MOLOCO_ASSETS:
-        return {"error": f"Asset with ID '{asset_id}' not found."}
-
-    creative_id = _generate_id("creative")
-    creative_data = {
-        "id": creative_id,
-        "name": name,
-        "creative_type": creative_type,
-        "asset_id": asset_id,
-        "video_property": video_property,
-        "status": "ACTIVE", # Assume active upon creation for simplicity
-        "createTime": datetime.datetime.now().isoformat(),
-        "lastModifiedTime": datetime.datetime.now().isoformat(),
-    }
-    _MOLOCO_CREATIVES[creative_id] = creative_data
-    return {"data": {"id": creative_id, "name": name, "status": "ACTIVE"}}
-
-def simulate_create_creative_group(name: str, creative_ids: list):
+@app.route('/cm/v1/creative_groups', methods=['POST'])
+def create_creative_group():
     """
     Simulates the Moloco API call to create a creative group.
     Returns a mock response dictionary.
     """
-    for creative_id in creative_ids:
-        if creative_id not in _MOLOCO_CREATIVES:
-            return {"error": f"Creative with ID '{creative_id}' not found."}
-
     creative_group_id = _generate_id("cg")
-    creative_group_data = {
-        "id": creative_group_id,
-        "name": name,
-        "creative_ids": creative_ids,
-        "status": "ACTIVE",
-        "createTime": datetime.datetime.now().isoformat(),
-        "lastModifiedTime": datetime.datetime.now().isoformat(),
-        "performance": {"impressions": 0, "conversions": 0} # Initialize performance metrics
-    }
-    _MOLOCO_CREATIVE_GROUPS[creative_group_id] = creative_group_data
-    return {"data": {"id": creative_group_id, "name": name, "status": "ACTIVE"}}
+    creative_ids = request.args.getlist("creative_ids")
+    creative_group = CreativeGroup(
+        id=creative_group_id,
+        title=request.args.get("title", "New Creative Group"),
+        description=request.args.get("description", "No description provided"),
+        creative_ids=creative_ids,
+        status="ACTIVE",
+        createTime=datetime.datetime.now().isoformat(),
+        lastModifiedTime=datetime.datetime.now().isoformat()
+    )
+    _MOLOCO_CREATIVE_GROUPS.append(creative_group)
+    return jsonify({"data": {"id": creative_group.id, "creatived_ids": creative_ids, "status": "ACTIVE"}})
 
 
 @app.route('/cm/v1/campaigns', methods=['GET'])

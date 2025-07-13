@@ -126,7 +126,8 @@ if uploaded_file1 is not None and uploaded_file2 is not None:
             "ad_account_id": env.ad_account_id,
             "product_id": env.product_id,
             "title": uploaded_file1.name,
-            "type": "VIDEO"
+            "type": "VIDEO",
+            "ad_type": "PORTRAIT"  # Specify ad type for portrait video
         }
         portrait_asset_response = requests.post(url, headers=headers, params=params)
         print(f"Portrait Asset Response: {portrait_asset_response.text}")
@@ -142,7 +143,8 @@ if uploaded_file1 is not None and uploaded_file2 is not None:
             "ad_account_id": env.ad_account_id,
             "product_id": env.product_id,
             "title": uploaded_file2.name,
-            "type": "VIDEO"
+            "type": "VIDEO", 
+            "ad_type": "LANDSCAPE"  # Specify ad type for landscape video
         }
         landscape_asset_response = requests.post(url, headers=headers, params=params)
         landscape_asset_response_json = landscape_asset_response.json()
@@ -154,20 +156,49 @@ if uploaded_file1 is not None and uploaded_file2 is not None:
 
 st.write("---")
 st.header("Create New Creative Group")
+# Fetch all portrait and landscape creatives
+url = "http://localhost:8080/cm/v1/creatives/PORTRAIT"
+params = {"ad_type": "PORTRAIT"}
+portrait_response = requests.get(url, headers=headers, params=params)
+print(f"Portrait Response: {portrait_response.text}")
+portrait_creatives = portrait_response.json().get("data", [])
+portrait_creative_id = st.selectbox(
+    "Select Portrait Creative",
+    options=[c["id"] for c in portrait_creatives],
+    format_func=lambda cid: next((c["title"] for c in portrait_creatives if c["id"] == cid), cid),
+    key="portrait_creative_select"
+)
+url = "http://localhost:8080/cm/v1/creatives/LANDSCAPE"
+params = {"ad_type": "LANDSCAPE"}
+landscape_response = requests.get(url, headers=headers, params=params)
+landscape_creatives = landscape_response.json().get("data", [])
+landscape_creative_id = st.selectbox(
+    "Select Landscape Creative",
+    options=[c["id"] for c in landscape_creatives],
+    format_func=lambda cid: next((c["title"] for c in landscape_creatives if c["id"] == cid), cid),
+    key="landscape_creative_select"
+)
+creative_group_title = st.text_input("Creative Group Title", value="New Creative Group")
+creative_group_description = st.text_area("Creative Group Description", value="Description of the new creative group")
 
-if st.button("Select Portrait and Landscape Creatives"):
+if st.button("Upload Portrait and Landscape Creatives"):
     st.info("Simulating creative group creation...")
-    new_creative_group_name = f"New_Concept_CG_{moloco_simulator._generate_id()}"
-    creative_group_response = moloco_simulator.simulate_create_creative_group(
-        name=new_creative_group_name,
-        creative_ids=[portrait_creative_id, landscape_creative_id]
-    )
-    if "data" in creative_group_response:
-        new_cg_id = creative_group_response["data"]["id"]
+    new_creative_group_name = creative_group_title or "New Creative Group"
+    new_creative_group_description = creative_group_description or "Description of the new creative group"
+    url = "http://localhost:8080/cm/v1/creative_groups"
+    params = {
+        "title": new_creative_group_name,
+        "description": new_creative_group_description,
+        "creative_ids": [portrait_creative_id, landscape_creative_id]
+    }
+    creative_group_response = requests.post(url, headers=headers, json=params)
+    creative_group_response_json = creative_group_response.json()
+    if "data" in creative_group_response_json:
+        new_cg_id = creative_group_response_json["data"]["id"]
         st.success(f"Creative group '{new_cg_id}' created successfully!")
         st.session_state["last_created_cg_id"] = new_cg_id # Store for later use in session state
     else:
-        st.error(f"Failed to create creative group: {creative_group_response.get('error', 'Unknown error')}")
+        st.error(f"Failed to create creative group: {creative_group_response}")
 
 
 st.write("---")
