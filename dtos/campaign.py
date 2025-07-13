@@ -14,3 +14,6 @@ class Campaign:
     createTime: str
     lastModifiedTime: str
     impressions_goal_per_cg: Optional[int] = None
+
+    def to_dict(self):
+        return self.__dict__
