@@ -4,7 +4,8 @@ from typing import List, Dict
 @dataclass
 class CreativeGroup:
     id: str
-    name: str
+    title: str
+    description: str
     creative_ids: List[str]
     status: str
     createTime: str
