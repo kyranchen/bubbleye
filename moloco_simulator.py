@@ -9,10 +9,46 @@ from dtos.creative_group import CreativeGroup
 from dtos.creative import Creative
 
 # --- In-memory Data Stores (Mock Moloco Database) ---
-# Each dictionary stores entities by their unique ID.
+# Initialize data with two creatives and one creative group
+# Three campaigns: one testing, two regular
 
 _MOLOCO_CREATIVES = [] # Stores mock creative data
+creative_1 = Creative(
+    id="creative_00000001",
+    ad_account_id=env.ad_account_id,
+    product_id=env.product_id,
+    title="Creative 1",
+    type="VIDEO",
+    ad_type="PORTRAIT",
+    video_property={"auto_endcard": True},
+    createTime=datetime.datetime.now().isoformat(),
+    lastModifiedTime=datetime.datetime.now().isoformat()
+)
+creative_2 = Creative(
+    id="creative_00000002",
+    ad_account_id=env.ad_account_id,
+    product_id=env.product_id,
+    title="Creative 2",
+    type="VIDEO",
+    ad_type="LANDSCAPE",
+    video_property={"auto_endcard": True},
+    createTime=datetime.datetime.now().isoformat(),
+    lastModifiedTime=datetime.datetime.now().isoformat()
+)
+_MOLOCO_CREATIVES.append(creative_1)
+_MOLOCO_CREATIVES.append(creative_2)
 _MOLOCO_CREATIVE_GROUPS = [] # Stores mock creative group data
+good_creative_group = CreativeGroup(
+    id="good_creative_group",
+    title="Good Creative Group",
+    description="This is a control group with good creatives.",
+    creative_ids=["creative_1", "creative_2"],
+    status="ACTIVE",
+    createTime=datetime.datetime.now().isoformat(),
+    lastModifiedTime=datetime.datetime.now().isoformat(),
+    performance={"impressions": 0, "conversions": 0}
+)
+_MOLOCO_CREATIVE_GROUPS.append(good_creative_group)
 testing_campaign = Campaign(
     ad_account_id=env.ad_account_id,
     product_id=env.product_id,
@@ -137,7 +173,7 @@ def create_creative_group():
     Simulates the Moloco API call to create a creative group.
     Returns a mock response dictionary.
     """
-    creative_group_id = _generate_id("cg")
+    creative_group_id = _generate_id("creative_group")
     creative_ids = request.args.getlist("creative_ids")
     creative_group = CreativeGroup(
         id=creative_group_id,
@@ -153,7 +189,7 @@ def create_creative_group():
 
 
 @app.route('/cm/v1/campaigns', methods=['GET'])
-def api_get_campaigns():
+def get_campaigns():
     """
     API endpoint to retrieve all campaign data.
     Supports Moloco-like query parameters: ad_account_id, product_id, states, fetch_option.
