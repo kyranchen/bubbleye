@@ -9,99 +9,6 @@ st.title("Bubbleye Ad Manager - Mock Application")
 st.subheader("Simulating Moloco API Interactions")
 
 st.write("---")
-
-st.header("Moloco Campaigns Overview")
-
-# Call API (List up Campaigns)
-# This is a mock API call to simulate fetching active campaigns
-# Example of calling the local Flask API endpoint from moloco_simulator
-# (Assuming your Flask app is running locally on port 5000)
-
-url = "http://localhost:8080/cm/v1/campaigns"
-params = {
-    "ad_account_id": env.ad_account_id,
-    "product_id": env.product_id,
-    "states": "ACTIVE",
-    "fetch_option": "UNKNOWN_FETCH_OPTION"
-}
-headers = {"accept": "application/json"}
-
-response = requests.get(url, headers=headers, params=params)
-try:
-    campaigns_response = response.json()
-except Exception as e:
-    st.error(f"Failed to decode JSON from API. Status code: {response.status_code}\nResponse text: {response.text}")
-
-if "data" in campaigns_response:
-    st.success("Successfully fetched mock campaigns!")
-    campaigns = campaigns_response["data"]
-
-    for campaign in campaigns:
-        st.markdown(f"**Campaign Name:** {campaign['description']} (ID: `{campaign['title']}`)")
-        st.write(f"**Status:** {campaign['status']}")
-        st.write(f"**Type:** {campaign['type']}")
-        st.write(f"**Creative Groups Attached:** {len(campaign['ad_group_ids'])}")
-        cg_key = f"creative_groups_{campaign['campaign_id']}"
-        if cg_key not in st.session_state:
-            st.session_state[cg_key] = list(campaign['ad_group_ids'])
-        # Always display the latest creative groups from session_state
-        st.write(f"Creative Groups: {st.session_state[cg_key]}")
-        if st.button(f"Replace Worst in {campaign['description']}", key=f"replace_{campaign['campaign_id']}"):
-            replace_response = moloco_simulator.simulate_replace_worst_creative_in_regular_campaign(campaign['campaign_id'])
-            if "message" in replace_response:
-                st.success(replace_response["message"])
-                # Update session_state with the new creative group list
-                st.session_state[cg_key] = st.session_state[cg_key] + [replace_response["new_champion_id"]]
-                if replace_response["replaced_cg_id"]:
-                    st.session_state[cg_key].remove(replace_response["replaced_cg_id"])
-                # Display the updated creative groups immediately
-                st.write(f"Updated Creative Groups: {st.session_state[cg_key]}")
-            else:
-                st.error(f"Failed to replace: {replace_response.get('error', 'Unknown error')}")
-
-        # Display attached creative groups
-        params = {
-            "date_range": {
-                "start": "20250601",
-                "end": "20250701"
-            },
-            "ad_account_id": env.ad_account_id,
-            "dimensions": [
-                "AD_GROUP_ID",
-                "CAMPAIGN_ID"
-            ],
-            "metrics": [
-                "INSTALLS"
-            ],
-            "dimension_filters": [
-                {
-                "dimension": "CAMPAIGN_ID",
-                "operator": "IN",
-                "values": [
-                    "campaign_id_123"
-                ]
-                }
-            ],
-            "order_by_filters": [
-                {
-                "dimension": "CAMPAIGN_ID",
-                "metric": "INSTALLS",
-                "is_descending": True
-                }
-            ]
-        }
-        # if campaign['creative_group_ids']:
-        #     with st.expander(f"View Creative Groups for {campaign['title']}"):
-        #         for cg_id in campaign['creative_group_ids']:
-        #             if cg_id in moloco_simulator._MOLOCO_CREATIVE_GROUPS:
-        #                 cg_name = moloco_simulator._MOLOCO_CREATIVE_GROUPS[cg_id]['name']
-        #                 st.write(f"- `{cg_id}`: {cg_name}")
-        #             else:
-        #                 st.write(f"- `{cg_id}` (Not found in data store - might be mock placeholder)")
-        st.markdown("---")
-else:
-    st.error(f"Error fetching campaigns: {campaigns_response.get('error', 'Unknown error')}")
-st.write("---")
 st.header("New Creative Concept Upload")
 
 # Simulate uploading a portrait and landscape video for a new concept
@@ -320,3 +227,96 @@ else:
 new_champions = moloco_simulator.simulate_get_champion_queue_status()
 if new_champions != queue_status:
     st.session_state["champion_queue"] = new_champions
+
+st.write("---")
+st.header("Moloco Campaigns Overview")
+
+# Call API (List up Campaigns)
+# This is a mock API call to simulate fetching active campaigns
+# Example of calling the local Flask API endpoint from moloco_simulator
+# (Assuming your Flask app is running locally on port 5000)
+
+url = "http://localhost:8080/cm/v1/campaigns"
+params = {
+    "ad_account_id": env.ad_account_id,
+    "product_id": env.product_id,
+    "states": "ACTIVE",
+    "fetch_option": "UNKNOWN_FETCH_OPTION"
+}
+headers = {"accept": "application/json"}
+
+response = requests.get(url, headers=headers, params=params)
+try:
+    campaigns_response = response.json()
+except Exception as e:
+    st.error(f"Failed to decode JSON from API. Status code: {response.status_code}\nResponse text: {response.text}")
+
+if "data" in campaigns_response:
+    st.success("Successfully fetched mock campaigns!")
+    campaigns = campaigns_response["data"]
+
+    for campaign in campaigns:
+        st.markdown(f"**Campaign Name:** {campaign['description']} (ID: `{campaign['title']}`)")
+        st.write(f"**Status:** {campaign['status']}")
+        st.write(f"**Type:** {campaign['type']}")
+        st.write(f"**Creative Groups Attached:** {len(campaign['ad_group_ids'])}")
+        cg_key = f"creative_groups_{campaign['campaign_id']}"
+        if cg_key not in st.session_state:
+            st.session_state[cg_key] = list(campaign['ad_group_ids'])
+        # Always display the latest creative groups from session_state
+        st.write(f"Creative Groups: {st.session_state[cg_key]}")
+        if st.button(f"Replace Worst in {campaign['description']}", key=f"replace_{campaign['campaign_id']}"):
+            replace_response = moloco_simulator.simulate_replace_worst_creative_in_regular_campaign(campaign['campaign_id'])
+            if "message" in replace_response:
+                st.success(replace_response["message"])
+                # Update session_state with the new creative group list
+                st.session_state[cg_key] = st.session_state[cg_key] + [replace_response["new_champion_id"]]
+                if replace_response["replaced_cg_id"]:
+                    st.session_state[cg_key].remove(replace_response["replaced_cg_id"])
+                # Display the updated creative groups immediately
+                st.write(f"Updated Creative Groups: {st.session_state[cg_key]}")
+            else:
+                st.error(f"Failed to replace: {replace_response.get('error', 'Unknown error')}")
+
+        # Display attached creative groups
+        params = {
+            "date_range": {
+                "start": "20250601",
+                "end": "20250701"
+            },
+            "ad_account_id": env.ad_account_id,
+            "dimensions": [
+                "AD_GROUP_ID",
+                "CAMPAIGN_ID"
+            ],
+            "metrics": [
+                "INSTALLS"
+            ],
+            "dimension_filters": [
+                {
+                "dimension": "CAMPAIGN_ID",
+                "operator": "IN",
+                "values": [
+                    "campaign_id_123"
+                ]
+                }
+            ],
+            "order_by_filters": [
+                {
+                "dimension": "CAMPAIGN_ID",
+                "metric": "INSTALLS",
+                "is_descending": True
+                }
+            ]
+        }
+        # if campaign['creative_group_ids']:
+        #     with st.expander(f"View Creative Groups for {campaign['title']}"):
+        #         for cg_id in campaign['creative_group_ids']:
+        #             if cg_id in moloco_simulator._MOLOCO_CREATIVE_GROUPS:
+        #                 cg_name = moloco_simulator._MOLOCO_CREATIVE_GROUPS[cg_id]['name']
+        #                 st.write(f"- `{cg_id}`: {cg_name}")
+        #             else:
+        #                 st.write(f"- `{cg_id}` (Not found in data store - might be mock placeholder)")
+        st.markdown("---")
+else:
+    st.error(f"Error fetching campaigns: {campaigns_response.get('error', 'Unknown error')}")
