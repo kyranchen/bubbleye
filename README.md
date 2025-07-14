@@ -5,7 +5,23 @@ https://docs.google.com/document/d/1OmtiCgVTu-QbU934h11vM_JOqjDV_icAxYWy2MWF-EE/
 
 https://developer.moloco.cloud/
 
-# Layout
-1. Display two regular campaigns => API: list up campaigns
-2. Display champion concepts waiting line => create a function that adds creative groups to this list
-3. Replace button that puts the top champion concept to a regular campaign => API: remove the creative with the lowest conversion and insert the one from the champion list and remove it from champion list(API: create new AdGroup)
+
+# User Flow
+
+1. **Upload Creatives**  
+    User uploads individual creative assets to the platform.
+
+2. **Create Creative Groups**  
+    User organizes uploaded creatives into creative groups.
+
+3. **Attach Creative Groups to Testing Campaign**  
+    User assigns creative groups to a testing campaign for evaluation.
+
+4. **Pause Campaign to View Results**  
+    User pauses the testing campaign to analyze performance metrics of each creative group.
+
+5. **Add Well-Performed Groups to Champion Queue**  
+    User adds high-performing creative groups to a champion queue for future use.
+
+6. **Replace Underperforming Group in Regular Campaign**  
+    If desired, user replaces the lowest-performing creative group in a regular campaign with a group from the champion queue.
