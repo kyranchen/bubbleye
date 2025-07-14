@@ -329,6 +329,24 @@ def simulate_campaign_performance():
 
     return {"message": "Evaluation complete.", "champions_identified": champions, "queue_size": len(_MOLOCO_CHAMPION_CONCEPTS_QUEUE)}
 
+@app.route('/cm/v1/champion_queue', methods=['POST'])
+def add_champion_to_queue():
+    """
+    Simulates adding a champion creative group to the waiting queue.
+    """
+    data = request.get_json()
+    ad_group_id = data.get("ad_group_id")
+
+    ad_group = next((ag for ag in _MOLOCO_AD_GROUPS if ag.ad_group_id == ad_group_id), None)
+    if ad_group is None:
+        return jsonify({"error": f"Ad Group '{ad_group_id}' not found."}), 404
+        
+    _MOLOCO_CHAMPION_CONCEPTS_QUEUE.append(ad_group)
+    
+    return jsonify({"message": f"Champion '{ad_group_id}' added to the waiting queue."\
+                    , "queue_size": len(_MOLOCO_CHAMPION_CONCEPTS_QUEUE)
+                    , "data" : _MOLOCO_CHAMPION_CONCEPTS_QUEUE})
+
 def simulate_replace_worst_creative_in_regular_campaign(campaign_id: str):
     """
     Simulates replacing the worst performing creative group in a regular campaign
@@ -372,7 +390,7 @@ def simulate_replace_worst_creative_in_regular_campaign(campaign_id: str):
 
 def simulate_get_champion_queue_status():
     """Returns the current list of champion creative group IDs in the waiting queue."""
-    return {"data": list(_MOLOCO_CHAMPION_CONCEPTS_QUEUE)}
+    return _MOLOCO_CHAMPION_CONCEPTS_QUEUE
 
 # You can add more helper functions here as needed.
 if __name__ == "__main__":

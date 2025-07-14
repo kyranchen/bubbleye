@@ -102,17 +102,6 @@ if "data" in campaigns_response:
 else:
     st.error(f"Error fetching campaigns: {campaigns_response.get('error', 'Unknown error')}")
 st.write("---")
-
-st.header("Champions Waiting Queue")
-queue_status = moloco_simulator.simulate_get_champion_queue_status()
-if queue_status and queue_status["data"]:
-    st.write("Current Champions in Queue:")
-    for champion_id in queue_status["data"]:
-        st.write(f"- `{champion_id}`")
-else:
-    st.info("No champion concepts currently in the waiting queue.")
-
-st.write("---")
 st.header("New Creative Concept Upload")
 
 # Simulate uploading a portrait and landscape video for a new concept
@@ -228,7 +217,12 @@ if st.session_state["last_created_cg_ids"]:
         attach_response_json = attach_response.json()
         if "message" in attach_response_json:
             st.success(attach_response_json["message"])
-            st.session_state["testing_campaign_ad_group_ids"].extend(attach_response_json.get("ad_group_ids", []))
+            # Extend only with new ad_group_ids not already in the list
+            new_ad_group_ids = attach_response_json.get("ad_group_ids", [])
+            existing_ids = set(st.session_state["testing_campaign_ad_group_ids"])
+            st.session_state["testing_campaign_ad_group_ids"].extend(
+                [agid for agid in new_ad_group_ids if agid not in existing_ids]
+            )
             st.session_state["last_created_cg_ids"] = []  # Clear after attaching
         else:
             st.error(f"Failed to attach")
@@ -275,6 +269,9 @@ if test_campaign:
 
 st.write("---")
 
+if "champion_queue" not in st.session_state:
+    st.session_state["champion_queue"] = moloco_simulator.simulate_get_champion_queue_status()
+
 st.header("Evaluate Testing Campaign & Champions")
 if st.button("Evaluate Creative Testing Campaign"):
     # Show performance for each ad group in the testing campaign
@@ -287,11 +284,39 @@ if st.button("Evaluate Creative Testing Campaign"):
         if ad_group_data:
             st.write(f"- **Ad Group `{ad_group_id}`:** {ad_group_data.get('performance', {})}")
 
+    st.write("---")
+selected_ad_group = st.selectbox(
+    "Select an Ad Group to Submit to Champion Queue",
+    options=test_campaign_ad_group_ids,
+    format_func=lambda agid: f"Ad Group {agid}", 
+    key="champion_ad_group_select"
+)
+if st.button("Submit Selected Ad Group to Champion Queue"):
+    # Simulate submitting selected ad group to the champion queue
+    submit_url = "http://localhost:8080/cm/v1/champion_queue"
+    params = {"ad_group_id": selected_ad_group}
+    submit_response = requests.post(submit_url, headers=headers, json=params)
+    submit_response_json = submit_response.json()
+    if "message" in submit_response_json:
+        st.success(submit_response_json["message"])
+        st.session_state["champion_queue"] = submit_response_json.get("data", [])
+    else:
+        st.error(f"Failed to submit to champion queue: {submit_response_json.get('error', 'Unknown error')}")
+
 st.write("---")
 
+st.header("Champions Waiting Queue")
 
-st.write("---")
+# Display the current champion queue status first
+queue_status = st.session_state.get("champion_queue", [])
+if queue_status:
+    st.write("Current Champions in Queue:")
+    for champion_group in queue_status:
+        st.write(f"- `{champion_group}`")
+else:
+    st.info("No champion concepts currently in the waiting queue.")
 
-st.header("Refresh Data")
-if st.button("Refresh All Data"):
-    st.experimental_rerun() # Rerun the app to show updated state
+# Update the champion queue if new ad groups have been added (after submission)
+new_champions = moloco_simulator.simulate_get_champion_queue_status()
+if new_champions != queue_status:
+    st.session_state["champion_queue"] = new_champions
