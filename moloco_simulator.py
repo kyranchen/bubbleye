@@ -50,7 +50,12 @@ good_creative_group = CreativeGroup(
     performance={"impressions": 0, "conversions": 0}
 )
 _MOLOCO_CREATIVE_GROUPS.append(good_creative_group)
-_MOLOCO_AD_GROUPS = [] # Stores mock ad group data
+good_ad_group = AdGroup(
+    ad_group_id="good_ad_group",
+    campaign_id="creative_testing_campaign",
+    creative_group_ids=["good_creative_group"],
+    performance={"impressions": 0, "conversions": 0}
+)
 testing_campaign = Campaign(
     ad_account_id=env.ad_account_id,
     product_id=env.product_id,
@@ -58,7 +63,7 @@ testing_campaign = Campaign(
     title="creative_testing_campaign",
     description="creative_testing_campaign",
     status="PAUSED", # Initial status as per requirements implicitly
-    ad_group_ids=["good_creative_group"], # Initially includes the control group
+    ad_group_ids=["good_ad_group"], # Initially includes the control group
     type="TESTING",
     createTime=datetime.datetime.now().isoformat(),
     lastModifiedTime=datetime.datetime.now().isoformat(),
@@ -115,6 +120,11 @@ champion_ad3 = AdGroup(
 _MOLOCO_CHAMPION_CONCEPTS_QUEUE = [
     champion_ad1, champion_ad2, champion_ad3
 ] 
+_MOLOCO_AD_GROUPS = [] # Stores mock ad group data
+_MOLOCO_AD_GROUPS.append(good_ad_group) # Add the good ad group to the mock data
+_MOLOCO_AD_GROUPS.append(champion_ad1) # Add champion ad groups to the mock data
+_MOLOCO_AD_GROUPS.append(champion_ad2) # Add champion ad groups to the mock data
+_MOLOCO_AD_GROUPS.append(champion_ad3) # Add champion ad groups to the mock data
 
 app = Flask(__name__)
 # --- Helper Function for ID Generation ---
@@ -225,10 +235,14 @@ def get_ad_group_by_id(ad_group_id: str):
     Helper function to retrieve an ad group by its ID.
     Returns the ad group object or None if not found.
     """
+    print(f"Retrieving ad group with ID: {ad_group_id}")
     for campaign in _MOLOCO_CAMPAIGNS:
-        for ad_group_id in campaign.ad_group_ids:
-            if ad_group_id == ad_group_id:
-                return jsonify({"data": {"ad_group_id": ad_group_id, "campaign_id": campaign.campaign_id}})
+        print(campaign.ad_group_ids)
+        for agid in campaign.ad_group_ids:
+            if ad_group_id == agid:
+                ad_group = next((ag for ag in _MOLOCO_AD_GROUPS if ag.ad_group_id == ad_group_id), None)
+                if ad_group is not None:
+                    return jsonify({"data": ad_group.to_dict() if hasattr(ad_group, "to_dict") else ad_group.__dict__})
     return jsonify({"error": f"Ad Group with ID '{ad_group_id}' not found."})
 
 @app.route('/cm/v1/campaigns/<campaign_id>', methods=['POST'])
@@ -251,33 +265,43 @@ def add_creative_groups_to_campaign(campaign_id: str):
         )
         _MOLOCO_AD_GROUPS.append(ad_group)
         campaign.ad_group_ids.append(ad_group_id)
-
     campaign.lastModifiedTime = datetime.datetime.now().isoformat()
 
-    return jsonify({"message": "Creative groups attached successfully."})
+    return jsonify({"message": "Creative groups attached successfully.", "ad_group_ids": campaign.ad_group_ids})
 
-def simulate_campaign_performance(campaign_id: str):
+@app.route('/cm/v1/campaigns/<campaign_id>/status', methods=['POST'])
+def update_campaign_status(campaign_id: str):
+    campaign = next((c for c in _MOLOCO_CAMPAIGNS if c.campaign_id == campaign_id), None)
+    if campaign is None:
+        return jsonify({"error": f"Campaign '{campaign_id}' not found."}), 404
+    data = request.get_json()
+    new_status = data.get("status")
+    campaign.status = new_status
+    campaign.lastModifiedTime = datetime.datetime.now().isoformat()
+    return jsonify({"message": f"Campaign '{campaign_id}' status updated to '{new_status}'."})
+
+@app.route('/cm/v1/campaigns/performance', methods=['POST'])
+def simulate_campaign_performance():
     """
     Simulates retrieving performance data for a campaign.
     For the testing campaign, it simulates impressions reaching the goal and random conversions.
     For regular campaigns, it simulates ongoing performance.
     """
-    campaign = next((c for c in _MOLOCO_CAMPAIGNS if c.campaign_id == campaign_id), None)
-    performance_data = {}
-
+    campaign = next((c for c in _MOLOCO_CAMPAIGNS if c.campaign_id == "creative_testing_campaign"), None)
     for ad_id in campaign.ad_group_ids:
-        if ad_id in _MOLOCO_AD_GROUPS:
-            ad_group = next((ag for ag in _MOLOCO_AD_GROUPS if ag.ad_group_id == ad_id), None)
+        ad_group = next((ag for ag in _MOLOCO_AD_GROUPS if ag.ad_group_id == ad_id), None)
+        if ad_group is not None:
             impressions = 10000 # Simulate reaching 10,000 impressions for testing campaign if running
             # Simulate conversions based on impressions, with some randomness
-            conversions = int(impressions * random.uniform(0.005, 0.015))
+            conversions = int(impressions * random.uniform(0.01, 0.15)) # 1% to 5% conversion rate
 
             ad_group.performance = {
                 "impressions": impressions,
                 "conversions": conversions
             }
+            print(f"Ad Group {ad_group.ad_group_id} performance updated: {ad_group.performance}")
+    return jsonify({"message": "Performance simulated successfully."})
 
-def simulate_evaluate_testing_campaign(campaign_id: str):
     """
     Simulates evaluating the testing campaign to identify champions.
     Adds champions to the waiting queue.

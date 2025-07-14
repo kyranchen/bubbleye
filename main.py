@@ -218,7 +218,6 @@ if st.session_state["last_created_cg_ids"]:
     for cg_id in st.session_state["last_created_cg_ids"]:
         st.write(f"- `{cg_id}`")
     if st.button(f"Attach {', '.join(st.session_state['last_created_cg_ids'])} to creative_testing_campaign"):
-        print(st.session_state["last_created_cg_ids"])
         url = "http://localhost:8080/cm/v1/campaigns/creative_testing_campaign"
         params = {
             "creative_group_ids": st.session_state["last_created_cg_ids"],
@@ -229,7 +228,7 @@ if st.session_state["last_created_cg_ids"]:
         attach_response_json = attach_response.json()
         if "message" in attach_response_json:
             st.success(attach_response_json["message"])
-            st.session_state["testing_campaign_ad_group_ids"].extend(st.session_state["last_created_cg_ids"])
+            st.session_state["testing_campaign_ad_group_ids"].extend(attach_response_json.get("ad_group_ids", []))
             st.session_state["last_created_cg_ids"] = []  # Clear after attaching
         else:
             st.error(f"Failed to attach")
@@ -244,7 +243,6 @@ if test_campaign:
     st.write(f"Current Status of 'creative_testing_campaign': **{test_campaign['status']}**")
     st.write(f"**Testing Campaign ID:** `{test_campaign['campaign_id']}`")
     test_campaign_ad_group_ids = st.session_state.get("testing_campaign_ad_group_ids", [])
-
     for ad_group_id in test_campaign_ad_group_ids:
         url = "http://localhost:8080/cm/v1/ad_groups/" + ad_group_id
         ad_group_response = requests.get(url, headers=headers)
@@ -254,8 +252,8 @@ if test_campaign:
                 st.write(f"**Performance:** {ad_group_data.get('performance', {})}")
     
     if st.button("Start Testing Campaign"):
-        url = "http://localhost:8080/cm/v1/campaigns/creative_testing_campaign"
-        params = {"status": "RUNNING", "creative_group_ids": []}
+        url = "http://localhost:8080/cm/v1/campaigns/creative_testing_campaign/status"
+        params = {"status": "RUNNING"}
         status_response = requests.post(url, headers=headers, json=params)
         status_response_json = status_response.json()
         if "message" in status_response_json:
@@ -263,9 +261,11 @@ if test_campaign:
         else:
             st.error(f"Failed to update status")
     if st.button("Pause Testing Campaign"):
-        moloco_simulator.simulate_campaign_performance("creative_testing_campaign")
-        url = "http://localhost:8080/cm/v1/campaigns/creative_testing_campaign"
-        params = {"status": "PAUSED", "creative_group_ids": []}
+        url = "http://localhost:8080/cm/v1/campaigns/performance"
+        response = requests.post(url, headers=headers)
+
+        url = "http://localhost:8080/cm/v1/campaigns/creative_testing_campaign/status"
+        params = {"status": "PAUSED"}
         status_response = requests.post(url, headers=headers, json=params)
         status_response_json = status_response.json()
         if "message" in status_response_json:
@@ -277,13 +277,15 @@ st.write("---")
 
 st.header("Evaluate Testing Campaign & Champions")
 if st.button("Evaluate Creative Testing Campaign"):
-    eval_response = moloco_simulator.simulate_evaluate_testing_campaign("creative_testing_campaign")
-    if "message" in eval_response:
-        st.success(eval_response["message"])
-        st.write(f"Champions Identified: {eval_response['champions_identified']}")
-        st.write(f"Champions in Waiting Queue: {eval_response['queue_size']}")
-    else:
-        st.error(f"Evaluation failed: {eval_response.get('error', 'Unknown error')}")
+    # Show performance for each ad group in the testing campaign
+    test_campaign_ad_group_ids = st.session_state.get("testing_campaign_ad_group_ids", [])
+    st.subheader("Ad Group Performance")
+    for ad_group_id in test_campaign_ad_group_ids:
+        url = f"http://localhost:8080/cm/v1/ad_groups/" + ad_group_id
+        ad_group_response = requests.get(url, headers=headers)
+        ad_group_data = ad_group_response.json().get("data", {})
+        if ad_group_data:
+            st.write(f"- **Ad Group `{ad_group_id}`:** {ad_group_data.get('performance', {})}")
 
 st.write("---")
 
