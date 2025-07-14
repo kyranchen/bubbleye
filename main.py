@@ -200,9 +200,7 @@ if st.button("Upload Portrait and Landscape Creatives"):
     if "data" in creative_group_response_json:
         new_cg_id = creative_group_response_json["data"]["id"]
         st.success(f"Creative group '{new_cg_id}' created successfully!")
-        # Add new ID and keep only the last two
         st.session_state["last_created_cg_ids"].append(new_cg_id)
-        st.session_state["last_created_cg_ids"] = st.session_state["last_created_cg_ids"][-2:]
     else:
         st.error(f"Failed to create creative group: {creative_group_response}")
 
@@ -216,10 +214,13 @@ if st.session_state["last_created_cg_ids"]:
     for cg_id in st.session_state["last_created_cg_ids"]:
         st.write(f"- `{cg_id}`")
     if st.button(f"Attach {', '.join(st.session_state['last_created_cg_ids'])} to creative_testing_campaign"):
-        attach_response = moloco_simulator.simulate_add_creative_groups_to_campaign(
-            campaign_id="creative_testing_campaign",
-            new_creative_group_ids=st.session_state["last_created_cg_ids"]
-        )
+        url = "http://localhost:8080/cm/v1/campaigns/creative_testing_campaign"
+        params = {
+            "creative_group_ids": st.session_state["last_created_cg_ids"],
+            "ad_account_id": env.ad_account_id,
+            "product_id": env.product_id
+        }
+        attach_response = requests.post(url, headers=headers, json=params)
         if "message" in attach_response:
             st.success(attach_response["message"])
             st.session_state["last_created_cg_ids"] = []  # Clear after attaching
