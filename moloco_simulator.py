@@ -38,6 +38,7 @@ creative_2 = Creative(
 _MOLOCO_CREATIVES.append(creative_1)
 _MOLOCO_CREATIVES.append(creative_2)
 _MOLOCO_CREATIVE_GROUPS = [] # Stores mock creative group data
+# Pre-populate the "good_creative_group" as it's a control group
 good_creative_group = CreativeGroup(
     id="good_creative_group",
     title="Good Creative Group",
@@ -49,6 +50,7 @@ good_creative_group = CreativeGroup(
     performance={"impressions": 0, "conversions": 0}
 )
 _MOLOCO_CREATIVE_GROUPS.append(good_creative_group)
+_MOLOCO_AD_GROUPS = [] # Stores mock ad group data
 testing_campaign = Campaign(
     ad_account_id=env.ad_account_id,
     product_id=env.product_id,
@@ -113,8 +115,6 @@ champion_ad3 = AdGroup(
 _MOLOCO_CHAMPION_CONCEPTS_QUEUE = [
     champion_ad1, champion_ad2, champion_ad3
 ] 
-
-# Pre-populate the "good_creative_group" as it's a control group
 
 app = Flask(__name__)
 # --- Helper Function for ID Generation ---
@@ -185,7 +185,6 @@ def create_creative_group():
     _MOLOCO_CREATIVE_GROUPS.append(creative_group)
     return jsonify({"data": {"id": creative_group.id, "creatived_ids": creative_ids, "status": "ACTIVE"}})
 
-
 @app.route('/cm/v1/campaigns', methods=['GET'])
 def get_campaigns():
     """
@@ -209,6 +208,29 @@ def get_campaigns():
         campaign_list.append(c.to_dict() if hasattr(c, "to_dict") else c.__dict__)
     return jsonify({"data": campaign_list})
 
+@app.route('/cm/v1/campaigns/<campaign_id>', methods=['GET'])
+def get_campaign_by_id(campaign_id: str):
+    """
+    Helper function to retrieve a campaign by its ID.
+    Returns the campaign object or None if not found.
+    """
+    for campaign in _MOLOCO_CAMPAIGNS:
+        if campaign.campaign_id == campaign_id:
+            return jsonify({"data" : campaign.to_dict() if hasattr(campaign, "to_dict") else campaign.__dict__})
+    return jsonify({"error": f"Campaign with ID '{campaign_id}' not found."})
+
+@app.route('/cm/v1/ad_groups/<ad_group_id>', methods=['GET'])
+def get_ad_group_by_id(ad_group_id: str):
+    """
+    Helper function to retrieve an ad group by its ID.
+    Returns the ad group object or None if not found.
+    """
+    for campaign in _MOLOCO_CAMPAIGNS:
+        for ad_group_id in campaign.ad_group_ids:
+            if ad_group_id == ad_group_id:
+                return jsonify({"data": {"ad_group_id": ad_group_id, "campaign_id": campaign.campaign_id}})
+    return jsonify({"error": f"Ad Group with ID '{ad_group_id}' not found."})
+
 @app.route('/cm/v1/campaigns/<campaign_id>', methods=['POST'])
 def add_creative_groups_to_campaign(campaign_id: str):
     """
@@ -217,8 +239,8 @@ def add_creative_groups_to_campaign(campaign_id: str):
     campaign = next((c for c in _MOLOCO_CAMPAIGNS if c.campaign_id == campaign_id), None)
     if campaign is None:
         return jsonify({"error": f"Campaign '{campaign_id}' not found."}), 404
-    
-    creative_group_ids = request.args.getlist("creative_group_ids")
+    data = request.get_json()
+    creative_group_ids = data.get("creative_group_ids")
     for cg_id in creative_group_ids:
         ad_group_id = _generate_id("ad_group")
         ad_group = AdGroup(
@@ -227,57 +249,33 @@ def add_creative_groups_to_campaign(campaign_id: str):
             creative_group_ids=[cg_id],
             performance={"impressions": 0, "conversions": 0}
         )
+        _MOLOCO_AD_GROUPS.append(ad_group)
         campaign.ad_group_ids.append(ad_group_id)
 
-    return {"message": "Creative groups attached successfully."}
+    campaign.lastModifiedTime = datetime.datetime.now().isoformat()
 
+    return jsonify({"message": "Creative groups attached successfully."})
 
-def simulate_update_campaign_status(campaign_id: str, status: str):
-    """
-    Simulates updating a campaign's status (e.g., RUNNING, PAUSED).
-    """
-    if campaign_id not in _MOLOCO_CAMPAIGNS:
-        return {"error": f"Campaign '{campaign_id}' not found."}
-    if status not in ["RUNNING", "PAUSED"]:
-        return {"error": "Invalid status. Must be 'RUNNING' or 'PAUSED'."}
-
-    campaign = _MOLOCO_CAMPAIGNS[campaign_id]
-    campaign["status"] = status
-    campaign["lastModifiedTime"] = datetime.datetime.now().isoformat()
-
-    return {"data": {"id": campaign_id, "status": status}}
-
-def simulate_get_campaign_performance(campaign_id: str):
+def simulate_campaign_performance(campaign_id: str):
     """
     Simulates retrieving performance data for a campaign.
     For the testing campaign, it simulates impressions reaching the goal and random conversions.
     For regular campaigns, it simulates ongoing performance.
     """
-    if campaign_id not in _MOLOCO_CAMPAIGNS:
-        return {"error": f"Campaign '{campaign_id}' not found."}
-
-    campaign = _MOLOCO_CAMPAIGNS[campaign_id]
+    campaign = next((c for c in _MOLOCO_CAMPAIGNS if c.campaign_id == campaign_id), None)
     performance_data = {}
 
-    for cg_id in campaign["creative_group_ids"]:
-        if cg_id in _MOLOCO_CREATIVE_GROUPS:
-            cg = _MOLOCO_CREATIVE_GROUPS[cg_id]
-            if campaign["type"] == "TESTING" and campaign["status"] == "RUNNING":
-                # Simulate reaching 10,000 impressions for testing campaign if running
-                cg["performance"]["impressions"] = campaign["impressions_goal_per_cg"]
-                # Simulate conversions based on impressions, with some randomness
-                cg["performance"]["conversions"] = int(cg["performance"]["impressions"] * random.uniform(0.005, 0.015))
-            elif campaign["type"] == "REGULAR" and campaign["status"] == "RUNNING":
-                 # Simulate ongoing performance for regular campaigns
-                cg["performance"]["impressions"] += random.randint(1000, 5000)
-                cg["performance"]["conversions"] += random.randint(10, 50)
+    for ad_id in campaign.ad_group_ids:
+        if ad_id in _MOLOCO_AD_GROUPS:
+            ad_group = next((ag for ag in _MOLOCO_AD_GROUPS if ag.ad_group_id == ad_id), None)
+            impressions = 10000 # Simulate reaching 10,000 impressions for testing campaign if running
+            # Simulate conversions based on impressions, with some randomness
+            conversions = int(impressions * random.uniform(0.005, 0.015))
 
-            performance_data[cg_id] = {
-                "impressions": cg["performance"]["impressions"],
-                "conversions": cg["performance"]["conversions"],
+            ad_group.performance = {
+                "impressions": impressions,
+                "conversions": conversions
             }
-    return {"data": performance_data}
-
 
 def simulate_evaluate_testing_campaign(campaign_id: str):
     """

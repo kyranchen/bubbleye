@@ -130,7 +130,6 @@ if uploaded_file1 is not None and uploaded_file2 is not None:
             "ad_type": "PORTRAIT"  # Specify ad type for portrait video
         }
         portrait_asset_response = requests.post(url, headers=headers, params=params)
-        print(f"Portrait Asset Response: {portrait_asset_response.text}")
         portrait_asset_response_json = portrait_asset_response.json()
         if "error" in portrait_asset_response_json:
             st.error(f"Failed to upload portrait video: {portrait_asset_response_json['error']}")
@@ -160,7 +159,6 @@ st.header("Create New Creative Group")
 url = "http://localhost:8080/cm/v1/creatives/PORTRAIT"
 params = {"ad_type": "PORTRAIT"}
 portrait_response = requests.get(url, headers=headers, params=params)
-print(f"Portrait Response: {portrait_response.text}")
 portrait_creatives = portrait_response.json().get("data", [])
 portrait_creative_id = st.selectbox(
     "Select Portrait Creative",
@@ -207,6 +205,12 @@ if st.button("Upload Portrait and Landscape Creatives"):
 
 st.write("---")
 
+url = "http://localhost:8080/cm/v1/campaigns/creative_testing_campaign"
+fetch_campaign_response = requests.get(url, headers=headers)
+test_campaign = fetch_campaign_response.json().get("data", None)
+if test_campaign:
+    st.session_state["testing_campaign_ad_group_ids"] = test_campaign.get('ad_group_ids', [])
+
 st.header("Attach Creatives to Testing Campaign")
 
 if st.session_state["last_created_cg_ids"]:
@@ -214,6 +218,7 @@ if st.session_state["last_created_cg_ids"]:
     for cg_id in st.session_state["last_created_cg_ids"]:
         st.write(f"- `{cg_id}`")
     if st.button(f"Attach {', '.join(st.session_state['last_created_cg_ids'])} to creative_testing_campaign"):
+        print(st.session_state["last_created_cg_ids"])
         url = "http://localhost:8080/cm/v1/campaigns/creative_testing_campaign"
         params = {
             "creative_group_ids": st.session_state["last_created_cg_ids"],
@@ -221,35 +226,52 @@ if st.session_state["last_created_cg_ids"]:
             "product_id": env.product_id
         }
         attach_response = requests.post(url, headers=headers, json=params)
-        if "message" in attach_response:
-            st.success(attach_response["message"])
+        attach_response_json = attach_response.json()
+        if "message" in attach_response_json:
+            st.success(attach_response_json["message"])
+            st.session_state["testing_campaign_ad_group_ids"].extend(st.session_state["last_created_cg_ids"])
             st.session_state["last_created_cg_ids"] = []  # Clear after attaching
         else:
-            st.error(f"Failed to attach: {attach_response.get('error', 'Unknown error')}")
+            st.error(f"Failed to attach")
 else:
     st.info("Simulate new creative concepts first to get Creative Groups to attach.")
 
 st.write("---")
 
-st.header("Manage Creative Testing Campaign Status")
-test_campaign = moloco_simulator._MOLOCO_CAMPAIGNS.get("creative_testing_campaign")
+st.header("Manage Creative Testing Campaign")
+# Simulate fetching the testing campaign
 if test_campaign:
     st.write(f"Current Status of 'creative_testing_campaign': **{test_campaign['status']}**")
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Start Testing Campaign"):
-            status_response = moloco_simulator.simulate_update_campaign_status("creative_testing_campaign", "RUNNING")
-            if "data" in status_response:
-                st.success(f"Campaign status updated to: {status_response['data']['status']}")
-            else:
-                st.error(f"Failed to update status: {status_response.get('error', 'Unknown error')}")
-    with col2:
-        if st.button("Pause Testing Campaign"):
-            status_response = moloco_simulator.simulate_update_campaign_status("creative_testing_campaign", "PAUSED")
-            if "data" in status_response:
-                st.success(f"Campaign status updated to: {status_response['data']['status']}")
-            else:
-                st.error(f"Failed to update status: {status_response.get('error', 'Unknown error')}")
+    st.write(f"**Testing Campaign ID:** `{test_campaign['campaign_id']}`")
+    test_campaign_ad_group_ids = st.session_state.get("testing_campaign_ad_group_ids", [])
+
+    for ad_group_id in test_campaign_ad_group_ids:
+        url = "http://localhost:8080/cm/v1/ad_groups/" + ad_group_id
+        ad_group_response = requests.get(url, headers=headers)
+        ad_group_data = ad_group_response.json().get("data", {})
+        if ad_group_data:
+            with st.expander(f"Ad Group ID: `{ad_group_id}`", expanded=False):
+                st.write(f"**Performance:** {ad_group_data.get('performance', {})}")
+    
+    if st.button("Start Testing Campaign"):
+        url = "http://localhost:8080/cm/v1/campaigns/creative_testing_campaign"
+        params = {"status": "RUNNING", "creative_group_ids": []}
+        status_response = requests.post(url, headers=headers, json=params)
+        status_response_json = status_response.json()
+        if "message" in status_response_json:
+            st.success(f"Campaign status updated to: RUNNING")
+        else:
+            st.error(f"Failed to update status")
+    if st.button("Pause Testing Campaign"):
+        moloco_simulator.simulate_campaign_performance("creative_testing_campaign")
+        url = "http://localhost:8080/cm/v1/campaigns/creative_testing_campaign"
+        params = {"status": "PAUSED", "creative_group_ids": []}
+        status_response = requests.post(url, headers=headers, json=params)
+        status_response_json = status_response.json()
+        if "message" in status_response_json:
+            st.success(f"Campaign status updated to: PAUSED")
+        else:
+            st.error(f"Failed to update status")
 
 st.write("---")
 
