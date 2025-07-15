@@ -6,6 +6,26 @@ https://docs.google.com/document/d/1OmtiCgVTu-QbU934h11vM_JOqjDV_icAxYWy2MWF-EE/
 
 https://developer.moloco.cloud/
 
+# How to Run it
+
+1. **Install Dependencies**  
+    Download all required packages (including Streamlit and Flask) by running:
+    ```
+    pip install -r requirements.txt
+    ```
+
+2. **Start the Backend Simulator**  
+    Open a terminal and run:
+    ```
+    python3 moloco_simulator.py
+    ```
+
+3. **Start the Streamlit App**  
+    Open another terminal and run:
+    ```
+    streamlit run main.py
+    ```
+
 
 # User Flow
 
