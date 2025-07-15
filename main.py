@@ -11,6 +11,8 @@ st.subheader("Simulating Moloco API Interactions")
 st.write("---")
 st.header("New Creative Concept Upload")
 
+headers = {"accept": "application/json"}
+
 # Simulate uploading a portrait and landscape video for a new concept
 uploaded_file1 = st.file_uploader("Choose a file", type=["txt", "png", "jpg", "jpeg", "pdf", "mp3", "mp4"])
 uploaded_file2 = st.file_uploader("Choose a second file", type=["txt", "png", "jpg", "jpeg", "pdf", "mp3", "mp4"])
@@ -243,16 +245,11 @@ params = {
     "states": "ACTIVE",
     "fetch_option": "UNKNOWN_FETCH_OPTION"
 }
-headers = {"accept": "application/json"}
 
 response = requests.get(url, headers=headers, params=params)
-try:
-    campaigns_response = response.json()
-except Exception as e:
-    st.error(f"Failed to decode JSON from API. Status code: {response.status_code}\nResponse text: {response.text}")
+campaigns_response = response.json()
 
 if "data" in campaigns_response:
-    st.success("Successfully fetched mock campaigns!")
     campaigns = campaigns_response["data"]
 
     for campaign in campaigns:
