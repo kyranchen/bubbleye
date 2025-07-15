@@ -35,8 +35,32 @@ creative_2 = Creative(
     createTime=datetime.datetime.now().isoformat(),
     lastModifiedTime=datetime.datetime.now().isoformat()
 )
+creative_3 = Creative(
+    id="creative_00000003",
+    ad_account_id=env.ad_account_id,
+    product_id=env.product_id,
+    title="Creative 3",
+    type="IMAGE",
+    ad_type="LANDSCAPE",
+    video_property={"auto_endcard": True},
+    createTime=datetime.datetime.now().isoformat(),
+    lastModifiedTime=datetime.datetime.now().isoformat()
+)
+creative_4 = Creative(
+    id="creative_00000004",
+    ad_account_id=env.ad_account_id,
+    product_id=env.product_id,
+    title="Creative 4",
+    type="IMAGE",
+    ad_type="PORTRAIT",
+    video_property={"auto_endcard": True},
+    createTime=datetime.datetime.now().isoformat(),
+    lastModifiedTime=datetime.datetime.now().isoformat()
+)
 _MOLOCO_CREATIVES.append(creative_1)
 _MOLOCO_CREATIVES.append(creative_2)
+_MOLOCO_CREATIVES.append(creative_3)
+_MOLOCO_CREATIVES.append(creative_4)
 _MOLOCO_CREATIVE_GROUPS = [] # Stores mock creative group data
 # Pre-populate the "good_creative_group" as it's a control group
 good_creative_group = CreativeGroup(
@@ -44,6 +68,16 @@ good_creative_group = CreativeGroup(
     title="Good Creative Group",
     description="This is a control group with good creatives.",
     creative_ids=["creative_1", "creative_2"],
+    status="ACTIVE",
+    createTime=datetime.datetime.now().isoformat(),
+    lastModifiedTime=datetime.datetime.now().isoformat(),
+    performance={"impressions": 0, "conversions": 0}
+)
+regular_creative_group = CreativeGroup(
+    id="regular_creative_group",
+    title="Regular Creative Group",
+    description="This is a regular creative group.",
+    creative_ids=["creative_3", "creative_4"],
     status="ACTIVE",
     createTime=datetime.datetime.now().isoformat(),
     lastModifiedTime=datetime.datetime.now().isoformat(),
@@ -103,19 +137,19 @@ champion_ad1 = AdGroup(
     ad_group_id="champion_cg_1",
     campaign_id="creative_testing_campaign",
     creative_group_ids=["champion_cg_1"],
-    performance={"impressions": 1000, "conversions": 123}
+    performance={"impressions": 10000, "conversions": 123}
 )
 champion_ad2 = AdGroup(
     ad_group_id="champion_cg_2",
     campaign_id="creative_testing_campaign",
     creative_group_ids=["champion_cg_2"], 
-    performance={"impressions": 1000, "conversions": 150}
+    performance={"impressions": 10000, "conversions": 150}
 )
 champion_ad3 = AdGroup(
     ad_group_id="champion_cg_3",
     campaign_id="creative_testing_campaign",
     creative_group_ids=["champion_cg_3"], 
-    performance={"impressions": 1000, "conversions": 200}
+    performance={"impressions": 10000, "conversions": 200}
 )
 _MOLOCO_CHAMPION_CONCEPTS_QUEUE = [
     champion_ad1, champion_ad2, champion_ad3
@@ -358,40 +392,36 @@ def simulate_replace_worst_creative_in_regular_campaign(campaign_id: str):
     if not _MOLOCO_CHAMPION_CONCEPTS_QUEUE:
         return {"error": "No champion concepts in the waiting line."}
 
-    campaign = _MOLOCO_CAMPAIGNS[campaign_id]
-    
-    # Simple logic to find the "worst" creative group (lowest conversions)
-    current_cgs = [cg_id for cg_id in campaign["creative_group_ids"] if cg_id in _MOLOCO_CREATIVE_GROUPS]
-    if not current_cgs:
-        # If no creative groups, just add a champion
-        champion_cg_id = _MOLOCO_CHAMPION_CONCEPTS_QUEUE.pop(0)
-        campaign["creative_group_ids"].append(champion_cg_id)
-        return {"message": f"Added champion '{champion_cg_id}' to empty regular campaign '{campaign_id}'."
-                , "new_champion_id": champion_cg_id, "replaced_cg_id": None}
+    campaign = next((c for c in _MOLOCO_CAMPAIGNS if c.campaign_id == campaign_id), None)
+    ad_group_ids = campaign.ad_group_ids if campaign else []
+    worst_ad_group = None
+    worst_performance = float('inf')
 
-    worst_cg_id = None
-    min_conversions = float('inf')
+    for id in ad_group_ids:
+        ad_group = next((ag for ag in _MOLOCO_AD_GROUPS if ag.ad_group_id == id), None)
+        if ad_group is not None:
+            # Find the worst performing ad group
+            if ad_group.performance["conversions"] < worst_performance:
+                worst_performance = ad_group.performance["conversions"]
+                worst_ad_group = ad_group
 
-    for cg_id in current_cgs:
-        performance = _MOLOCO_CREATIVE_GROUPS[cg_id]["performance"]
-        if performance["conversions"] < min_conversions:
-            min_conversions = performance["conversions"]
-            worst_cg_id = cg_id
-    
-    if worst_cg_id:
-        champion_cg_id = _MOLOCO_CHAMPION_CONCEPTS_QUEUE.pop(0)
-        campaign["creative_group_ids"].remove(worst_cg_id)
-        campaign["creative_group_ids"].append(champion_cg_id)
-        campaign["lastModifiedTime"] = datetime.datetime.now().isoformat()
-        return {"message": f"Replaced '{worst_cg_id}' with champion '{champion_cg_id}' in '{campaign_id}'."
-                , "replaced_cg_id": worst_cg_id, "new_champion_id": champion_cg_id}
+    # Replace it with the first champion from the queue
+    champion_ad = _MOLOCO_CHAMPION_CONCEPTS_QUEUE.pop(0)
+    if worst_ad_group is not None:
+        campaign.ad_group_ids.remove(worst_ad_group.ad_group_id)
+        campaign.ad_group_ids.append(champion_ad.ad_group_id)
+        return {"message": f"Replaced worst creative group '{worst_ad_group.ad_group_id}' with champion '{champion_ad.ad_group_id}'."
+                        , "new_champion_id" : champion_ad.ad_group_id, "replaced_ad_group_id" : worst_ad_group.ad_group_id}
     else:
-        return {"error": "Could not identify a 'worst' creative group to replace."}
+        campaign.ad_group_ids.append(champion_ad.ad_group_id)
+        return {"message" : "Added champion to the campaign as no worst performing ad group found."
+                        , "new_champion_id" : champion_ad.ad_group_id, "replaced_ad_group_id" : None}
+        
+
 
 def simulate_get_champion_queue_status():
     """Returns the current list of champion creative group IDs in the waiting queue."""
     return _MOLOCO_CHAMPION_CONCEPTS_QUEUE
 
-# You can add more helper functions here as needed.
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080, debug=True)
