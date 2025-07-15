@@ -1,7 +1,8 @@
 # bubbleye
 A mock web application for managing advertising creatives
 
-https://docs.google.com/document/d/1OmtiCgVTu-QbU934h11vM_JOqjDV_icAxYWy2MWF-EE/edit?tab=t.0
+# Tech Spec
+https://docs.google.com/document/d/1OmtiCgVTu-QbU934h11vM_JOqjDV_icAxYWy2MWF-EE/edit?usp=sharing
 
 https://developer.moloco.cloud/
 
